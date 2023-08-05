@@ -8,13 +8,13 @@ services:
 script:
   - docker --version
   # Build Feed
-  - docker build -t karangajjar/udagram-api-feed ./Project: Refactor Monolith to Microservices and Deploy/udagram-api-feed
+  - docker build -t karangajjar/udagram-api-feed ./Project_Refactor_Monolith_to_Microservices_and_Deploy/udagram-api-feed
   # Build User
-  - docker build -t karangajjar/udagram-api-user ./Project: Refactor Monolith to Microservices and Deploy/udagram-api-user
+  - docker build -t karangajjar/udagram-api-user ./Project_Refactor_Monolith_to_Microservices_and_Deploy/udagram-api-user
   # Build Frontend
-  - docker build -t karangajjar/udagram-frontend ./Project: Refactor Monolith to Microservices and Deploy/udagram-frontend
+  - docker build -t karangajjar/udagram-frontend ./Project_Refactor_Monolith_to_Microservices_and_Deploy/udagram-frontend
   # Build Reverse Proxy
-  - docker build -t karangajjar/reverseproxy ./Project: Refactor Monolith to Microservices and Deploy/udagram-reverseproxy
+  - docker build -t karangajjar/reverseproxy ./Project_Refactor_Monolith_to_Microservices_and_Deploy/udagram-reverseproxy
 
 after_success:
   - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
