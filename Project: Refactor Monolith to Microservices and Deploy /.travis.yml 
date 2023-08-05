@@ -1,0 +1,24 @@
+language: node_js
+node_js:
+  - 15
+
+services:
+  - docker
+
+script:
+  - docker --version
+  # Build Feed
+  - docker build -t karangajjar/udagram-api-feed ./udagram-api-feed
+  # Build User
+  - docker build -t karangajjar/udagram-api-user ./udagram-api-user
+  # Build Frontend
+  - docker build -t karangajjar/udagram-frontend ./udagram-frontend
+  # Build Reverse Proxy
+  - docker build -t karangajjar/reverseproxy ./udagram-reverseproxy
+
+after_success:
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker image push karangajjar/udagram-api-feed
+  - docker image push karangajjar/udagram-api-user
+  - docker image push karangajjar/udagram-frontend
+  - docker image push karangajjar/reverseproxy
