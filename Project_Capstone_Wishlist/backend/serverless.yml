@@ -1,0 +1,244 @@
+org: karangajjar
+app: serverless-wishlist-app
+service: serverless-wishlist-app
+
+package:
+  exclude:
+    - node_modules/**
+    - venv/**
+
+plugins:
+  - serverless-iam-roles-per-function
+  - serverless-plugin-tracing
+
+
+provider:
+  name: aws
+  region: us-east-1
+  runtime: python3.10
+  stage: prod
+  layers:
+    - arn:aws:lambda:us-east-1:551984777924:layer:PythonLayer:1
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  # Use these variables in the functions and resouorces section below. For example, 
+  # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
+  environment:
+    ATTACHMENT_S3_BUCKET: "wishlist-s3-bucket"
+    DYNAMODB_TABLE_NAME: "wishlist_table"
+    WISHLIST_CREATED_AT_INDEX: CreatedAtIndex
+    SIGNED_URL_EXPIRATION: 300
+    SLS_DEBUG: "*"
+
+  logs:
+    # Enable API Gateway logs
+    restApi: true
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - xray:PutTelemetryRecords
+            - xray:PutTraceSegments
+          Resource: "*"
+
+
+functions:
+
+  Auth:
+    handler: src.authorizer.main.handler
+    tracing: "true"
+
+  GenerateImageUrl:
+    handler: src.functions.api.get_image_upload_url.handler
+    tracing: "true"
+    events:
+      - http:
+          method: post
+          path: /wishlist/{wishlist_id}/attachment
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:UpdateItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_NAME}
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+        Resource: "arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*"
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+  RemoveWishlistItem:
+    handler: src.functions.api.remove_item.handler
+    tracing: "true"
+    events:
+      - http:
+          method: post
+          path: /wishlist/{wishlist_id}/remove
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:DeleteItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_NAME}
+      - Effect: Allow
+        Action:
+          - s3:DeleteObject
+        Resource: "arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*"
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+  CreateWishlist:
+    handler: src.functions.api.create_wishlist_item.handler
+    tracing: "true"
+    events:
+      - http:
+          method: post
+          path: /wishlist/create
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_NAME}
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+  GetWishlist:
+    handler: src.functions.api.get_wishlist_items.handler
+    tracing: "true"
+    events:
+      - http:
+          method: get
+          path: /wishlist/get
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_NAME}
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+        Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+  UpdateWishlist:
+    handler: src.functions.api.update_wishlist.handler
+    tracing: "true"
+    events:
+      - http:
+          method: post
+          path: /wishlist/update
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:UpdateItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_NAME}
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,DELETE,PUT,PATCH'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.ATTACHMENT_S3_BUCKET}
+        PublicAccessBlockConfiguration:
+          BlockPublicPolicy: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: TODOBucketPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketWishlistObjects
+              Effect: Allow
+              Principal: "*"
+              Action: [ "s3:GetObject" ]
+              Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*
+        Bucket: !Ref AttachmentsBucket
+
+    WishlistTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: wishlist_id
+            AttributeType: S
+          - AttributeName: created_date
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user_id
+            KeyType: HASH
+          - AttributeName: wishlist_id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE_NAME}
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.WISHLIST_CREATED_AT_INDEX}
+            KeySchema:
+              - AttributeName: user_id
+                KeyType: HASH
+              - AttributeName: created_date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
