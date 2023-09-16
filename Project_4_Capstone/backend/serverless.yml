@@ -1,0 +1,136 @@
+org: karangajjar
+app: serverless-todo-app
+service: serverless-todo-app
+
+package:
+  individually: true
+
+plugins:
+  - serverless-python-requirements
+  - serverless-iam-roles-per-function
+  - serverless-plugin-tracing
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    layer:
+      name: backend-app-layer
+      description: Requirement Layer
+      compatibleRuntimes:
+        - python3.9
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: us-east-1
+  stage: prod
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  # Use these variables in the functions and resouorces section below. For example, 
+  # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
+  environment:
+    DYNAMODB_HISTORY_TABLE: "todo-table"
+    TODOS_CREATED_AT_INDEX: CreatedAtIndex
+    SIGNED_URL_EXPIRATION: 300
+
+  logs:
+    # Enable API Gateway logs
+    restApi: true
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - xray:PutTelemetryRecords
+            - xray:PutTraceSegments
+          Resource: "*"
+
+
+functions:
+
+  Auth:
+    handler: src.authorizer.main.handler
+    tracing: true
+
+  app:
+    handler: src.backend_api.main.handler
+    environment:
+      STAGE: ${self:provider.stage}
+    layers:
+      - !Ref PythonRequirementsLambdaLayer
+    events:
+      - http:
+          method: get
+          path: /todo/get_todo
+          authorizer: Auth
+      - http:
+          method: post
+          path: /todo/create
+          authorizer: Auth
+      - http:
+          method: post
+          path: /todo/update
+          authorizer: Auth
+      - http:
+          method: post
+          path: /todo/delete
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Get*
+          - dynamodb:Query
+          - dynamodb:Delete*
+          - dynamodb:PutItem
+          - dynamodb:Update*
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_HISTORY_TABLE}
+      - Effect: Allow
+        Action:
+          - xray:PutTraceSegments
+        Resource: "*"
+
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,DELETE,PUT,PATCH'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+    
+    # TODO: Create a DynamoDB table with local secondary index and a composite key
+    TodosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: todo_id
+            AttributeType: S
+          - AttributeName: created_datetime
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user_id
+            KeyType: HASH
+          - AttributeName: todo_id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_HISTORY_TABLE}
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.TODOS_CREATED_AT_INDEX}
+            KeySchema:
+              - AttributeName: user_id
+                KeyType: HASH
+              - AttributeName: created_datetime
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
