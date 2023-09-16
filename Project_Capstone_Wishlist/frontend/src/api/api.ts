@@ -1,6 +1,5 @@
 import { apiEndpoint } from '../config'
 import { Wishlist } from '../types/Wishlist';
-import { CreateTodoRequest } from '../types/CreateTodoRequest';
 import Axios from 'axios'
 
 export async function getWishlistItems(idToken: string): Promise<Wishlist[]> {

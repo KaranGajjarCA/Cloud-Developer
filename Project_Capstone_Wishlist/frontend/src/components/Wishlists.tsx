@@ -13,7 +13,6 @@ interface WishlistsProps {
 
 interface WishlistsState {
     wishlists: Wishlist[]
-    newTodoName: string
     loading: boolean
     delete_confirm_open: boolean
     wishlist_id: string,
@@ -23,7 +22,6 @@ interface WishlistsState {
 export class Wishlists extends React.PureComponent<WishlistsProps, WishlistsState> {
     state: WishlistsState = {
         wishlists: [],
-        newTodoName: '',
         loading: true,
         delete_confirm_open: false,
         wishlist_id: "",
@@ -84,7 +82,7 @@ export class Wishlists extends React.PureComponent<WishlistsProps, WishlistsStat
                 wishlists: this.state.wishlists.filter(wishlist => wishlist.wishlist_id !== this.state.wishlist_id)
             })
         } catch {
-            alert('Todo deletion failed')
+            alert('Wishlist deletion failed')
         }
         this.setState({delete_confirm_open: false, wishlist_id: ""})
     }
@@ -116,7 +114,7 @@ export class Wishlists extends React.PureComponent<WishlistsProps, WishlistsStat
             const wishlists = await getWishlistItems(this.props.auth.getIdToken())
             window.location.reload()
         } catch {
-            alert('Todo Update failed')
+            alert('wishlist Update failed')
         }
     }
 
@@ -156,7 +154,7 @@ export class Wishlists extends React.PureComponent<WishlistsProps, WishlistsStat
                                             this.wishlist_update_state.category = ""
                                             this.wishlist_update_state.completed = false
                                         }}
-                                        trigger={<Button basic color='green'>Show Modal</Button>}
+                                        trigger={<Button basic color='green'>Edit</Button>}
                                     >
                                         <Modal.Header>Edit Wishlist Item</Modal.Header>
                                         <Modal.Content image>

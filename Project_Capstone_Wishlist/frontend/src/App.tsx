@@ -117,7 +117,7 @@ export default class App extends Component<AppProps, AppState> {
             // @ts-ignore
             await uploadFile(uploadUrl, this.wishlist_update_state.file)
         } catch {
-            alert('Todo Create failed')
+            alert('Wishlist Create failed')
         }
         window.location.reload()
     }
